@@ -1,71 +1,12 @@
-import { useState } from 'react';
-import { Search, TrendingUp, TrendingDown, DollarSign, BarChart3, PieChart, Activity } from 'lucide-react';
-
-// Type definitions
-interface IncomeStatementItem {
-    year: string;
-    revenue: number;
-    cogs: number;
-    grossProfit: number;
-    sga: number;
-    ebitda: number;
-    depreciation: number;
-    ebit: number;
-    taxes: number;
-    netIncome: number;
-    eps: number;
-}
-
-interface BalanceSheetItem {
-    year: string;
-    cash: number;
-    accountsReceivable: number;
-    inventory: number;
-    ppe: number;
-    totalAssets: number;
-    accountsPayable: number;
-    shortTermDebt: number;
-    longTermDebt: number;
-    totalLiabilities: number;
-    shareholdersEquity: number;
-}
-
-interface CashFlowItem {
-    year: string;
-    operatingCashFlow: number;
-    freeCashFlow: number;
-    capex: number;
-}
-
-interface StockData {
-    company: string;
-    sector: string;
-    marketCap: string;
-    description: string;
-    currentPrice: number;
-    ticker: string;
-    metrics: {
-        trailingPE: number;
-        forwardPE: number;
-        debtToEquity: number;
-        priceToBook: number;
-        priceToSales: number;
-        currentRatio: number;
-    };
-    margins: {
-        grossMargin: number;
-        operatingMargin: number;
-        netMargin: number;
-    };
-    incomeStatement: IncomeStatementItem[];
-    balanceSheet: BalanceSheetItem[];
-    cashFlow: CashFlowItem[];
-}
+import { useState, type ComponentType } from 'react';
+import { Search, TrendingUp, TrendingDown, DollarSign, BarChart3, PieChart, Activity, AlertCircle, RefreshCw } from 'lucide-react';
+import { useStockData } from '../hooks/useStockData';
+import type { IncomeStatementItem, BalanceSheetItem, CashFlowItem } from '../types/stockTypes';
 
 interface TabButtonProps {
     id: string;
     label: string;
-    icon: React.ComponentType<{ size?: number }>;
+    icon: ComponentType<{ size?: number }>;
 }
 
 interface MetricCardProps {
@@ -76,75 +17,27 @@ interface MetricCardProps {
 
 const StockResearchDashboard = () => {
     const [ticker, setTicker] = useState('');
-    const [stockData, setStockData] = useState<StockData | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState('overview');
     const [incomeExpandedRows, setIncomeExpandedRows] = useState<Record<string, boolean>>({});
     const [balanceExpandedRows, setBalanceExpandedRows] = useState<Record<string, boolean>>({});
+    
+    // Use the custom hook for stock data management
+    const {
+        stockData,
+        chartData,
+        loading,
+        error,
+        searchStock,
+        updateChartRange,
+        remainingRequests,
+        timeUntilReset
+    } = useStockData();
 
-    // Mock data for demonstration - in real implementation this would come from an API
-    const mockStockData: Record<string, Omit<StockData, 'ticker'>> = {
-        'AAPL': {
-            company: 'Apple Inc.',
-            sector: 'Technology',
-            marketCap: '3.01T',
-            description: 'Apple Inc. designs, manufactures, and markets smartphones, personal computers, tablets, wearables, and accessories worldwide.',
-            currentPrice: 185.25,
-            metrics: {
-                trailingPE: 29.8,
-                forwardPE: 26.4,
-                debtToEquity: 1.73,
-                priceToBook: 43.2,
-                priceToSales: 7.8,
-                currentRatio: 1.04
-            },
-            margins: {
-                grossMargin: 44.1,
-                operatingMargin: 29.8,
-                netMargin: 25.3
-            },
-            incomeStatement: [
-                { year: '2023', revenue: 383929, cogs: 214771, grossProfit: 169158, sga: 24932, ebitda: 123136, depreciation: 11519, ebit: 114301, taxes: 16741, netIncome: 96995, eps: 6.16 },
-                { year: '2022', revenue: 394328, cogs: 223546, grossProfit: 170782, sga: 25094, ebitda: 130541, depreciation: 11104, ebit: 119437, taxes: 19300, netIncome: 99803, eps: 6.11 },
-                { year: '2021', revenue: 365817, cogs: 212981, grossProfit: 152836, sga: 21973, ebitda: 120233, depreciation: 11284, ebit: 108949, taxes: 14527, netIncome: 94680, eps: 5.67 },
-                { year: '2020', revenue: 274515, cogs: 169559, grossProfit: 104956, sga: 19916, ebitda: 77344, depreciation: 11056, ebit: 66288, taxes: 9680, netIncome: 57411, eps: 3.31 },
-                { year: '2019', revenue: 260174, cogs: 161782, grossProfit: 98392, sga: 18245, ebitda: 76477, depreciation: 12547, ebit: 63930, taxes: 10481, netIncome: 55256, eps: 2.97 }
-            ],
-            balanceSheet: [
-                { year: '2023', cash: 29965, accountsReceivable: 29508, inventory: 6331, ppe: 43715, totalAssets: 352755, accountsPayable: 64115, shortTermDebt: 9822, longTermDebt: 106550, totalLiabilities: 290437, shareholdersEquity: 62317 },
-                { year: '2022', cash: 23646, accountsReceivable: 28184, inventory: 4946, ppe: 42117, totalAssets: 352583, accountsPayable: 64115, shortTermDebt: 11128, longTermDebt: 98959, totalLiabilities: 302083, shareholdersEquity: 50672 },
-                { year: '2021', cash: 34940, accountsReceivable: 26278, inventory: 6580, ppe: 39440, totalAssets: 351002, accountsPayable: 54763, shortTermDebt: 9613, longTermDebt: 109106, totalLiabilities: 287912, shareholdersEquity: 63090 },
-                { year: '2020', cash: 38016, accountsReceivable: 16120, inventory: 4061, ppe: 36766, totalAssets: 323888, accountsPayable: 42296, shortTermDebt: 8773, longTermDebt: 98667, totalLiabilities: 258549, shareholdersEquity: 65339 },
-                { year: '2019', cash: 48844, accountsReceivable: 22926, inventory: 4106, ppe: 37378, totalAssets: 338516, accountsPayable: 46236, shortTermDebt: 10260, longTermDebt: 91807, totalLiabilities: 248028, shareholdersEquity: 90488 }
-            ],
-            cashFlow: [
-                { year: '2023', operatingCashFlow: 110543, freeCashFlow: 84726, capex: -10959 },
-                { year: '2022', operatingCashFlow: 122151, freeCashFlow: 111443, capex: -10708 },
-                { year: '2021', operatingCashFlow: 104038, freeCashFlow: 92953, capex: -11085 },
-                { year: '2020', operatingCashFlow: 80674, freeCashFlow: 73365, capex: -7309 },
-                { year: '2019', operatingCashFlow: 69391, freeCashFlow: 58896, capex: -10495 }
-            ]
+    const handleSearch = async () => {
+        if (!ticker.trim()) {
+            return;
         }
-    };
-
-    const searchStock = async () => {
-        if (!ticker.trim()) return;
-
-        setLoading(true);
-        setError('');
-
-        // Simulate API call delay
-        setTimeout(() => {
-            const upperTicker = ticker.toUpperCase();
-            if (mockStockData[upperTicker]) {
-                setStockData({ ...mockStockData[upperTicker], ticker: upperTicker });
-            } else {
-                setError(`Stock data not found for ${upperTicker}. Try AAPL for demo.`);
-                setStockData(null);
-            }
-            setLoading(false);
-        }, 1000);
+        await searchStock(ticker);
     };
 
     const calculateGrowthRate = (current: number, previous: number) => {
@@ -159,6 +52,10 @@ const StockResearchDashboard = () => {
     };
 
     const formatPercent = (value: number) => `${value?.toFixed(1)}%`;
+
+    const handleChartRangeChange = (range: '1D' | '5D' | '1M' | '6M' | '1Y' | '5Y') => {
+        updateChartRange(range);
+    };
 
     const renderRowToggle = (rowKey: string, expandedState: Record<string, boolean>, setExpandedState: (v: Record<string, boolean>) => void, label: string) => {
         const isOpen = !!expandedState[rowKey];
@@ -250,12 +147,12 @@ const StockResearchDashboard = () => {
                                 placeholder="Enter stock ticker (e.g., AAPL)"
                                 value={ticker}
                                 onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                                onKeyPress={(e) => e.key === 'Enter' && searchStock()}
+                                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                                 className="w-full pl-12 pr-6 py-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-lg font-medium shadow-lg hover:shadow-xl transition-all duration-300"
                             />
                         </div>
                         <button
-                            onClick={searchStock}
+                            onClick={handleSearch}
                             disabled={loading}
                             className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
                         >
@@ -273,11 +170,28 @@ const StockResearchDashboard = () => {
                     {error && (
                         <div className="mt-6 p-4 bg-red-50 border-l-4 border-red-400 rounded-lg text-red-700 animate-slideInRight">
                             <div className="flex items-center">
-                                <div className="w-5 h-5 text-red-400 mr-3">⚠️</div>
+                                <AlertCircle className="w-5 h-5 text-red-400 mr-3" />
                                 {error}
                             </div>
                         </div>
                     )}
+
+                    {/* API Status */}
+                    <div className="mt-4 flex items-center justify-center gap-4 text-sm text-gray-600">
+                        <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span>API Status: Connected</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <RefreshCw className="w-4 h-4" />
+                            <span>Remaining: {remainingRequests} requests</span>
+                        </div>
+                        {timeUntilReset > 0 && (
+                            <div className="text-gray-500">
+                                Resets in {Math.ceil(timeUntilReset / 1000)}s
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Results */}
@@ -307,6 +221,69 @@ const StockResearchDashboard = () => {
                             <p className="text-gray-700 text-lg leading-relaxed">{stockData.description}</p>
                         </div>
 
+                        {/* Stock Chart Placeholder */}
+                        <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8 mb-8 animate-fadeInUp">
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+                                <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                                    <Activity className="text-blue-600" size={24} /> Stock Chart
+                                </h3>
+                                <div className="flex flex-wrap gap-2">
+                                    {(['1D','5D','1M','6M','1Y','5Y'] as const).map((r) => (
+                                        <button
+                                            key={r}
+                                            onClick={() => handleChartRangeChange(r)}
+                                            className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors ${
+                                                chartData.length > 0
+                                                    ? 'bg-blue-600 text-white border-blue-600'
+                                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            {r}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="w-full h-64 md:h-80">
+                                {chartData.length > 0 ? (
+                                    <svg viewBox="0 0 1000 300" className="w-full h-full">
+                                        {/* Background grid */}
+                                        <rect x="0" y="0" width="1000" height="300" fill="#ffffff" />
+                                        {[0, 1, 2, 3, 4].map((i) => (
+                                            <line key={`h-${i}`} x1="0" y1={i * 75} x2="1000" y2={i * 75} stroke="#f2f2f2" />
+                                        ))}
+                                        {/* Price path */}
+                                        {(() => {
+                                            const prices = chartData.map((d) => d.p);
+                                            const min = Math.min(...prices);
+                                            const max = Math.max(...prices);
+                                            const range = max - min || 1;
+                                            const path = chartData
+                                                .map((d, i) => {
+                                                    const x = (i / (chartData.length - 1)) * 1000;
+                                                    const y = 300 - ((d.p - min) / range) * 300;
+                                                    return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+                                                })
+                                                .join(' ');
+                                            const rising = chartData[chartData.length - 1].p >= chartData[0].p;
+                                            const stroke = rising ? '#16a34a' : '#dc2626';
+                                            const fill = rising ? 'rgba(34,197,94,0.08)' : 'rgba(220,38,38,0.08)';
+                                            // Area fill
+                                            const areaPath = `${path} L1000,300 L0,300 Z`;
+                                            return (
+                                                <g>
+                                                    <path d={areaPath} fill={fill} />
+                                                    <path d={path} stroke={stroke} strokeWidth="3" fill="none" />
+                                                </g>
+                                            );
+                                        })()}
+                                    </svg>
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-500">No data</div>
+                                )}
+                            </div>
+                        </div>
+
                         {/* Key Metrics */}
                         <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8 mb-8 animate-fadeInUp">
                             <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
@@ -319,7 +296,7 @@ const StockResearchDashboard = () => {
                                 <MetricCard label="Debt/Equity" value={stockData.metrics.debtToEquity} />
                                 <MetricCard label="Price/Book" value={stockData.metrics.priceToBook} />
                                 <MetricCard label="Price/Sales" value={stockData.metrics.priceToSales} />
-                                <MetricCard label="Current Ratio" value={stockData.metrics.currentRatio} />
+                                <MetricCard label="Dividend Yield" value={`${stockData.metrics.dividendYield.toFixed(2)}%`} />
                             </div>
                         </div>
 
@@ -391,6 +368,46 @@ const StockResearchDashboard = () => {
                                                         </tr>
                                                     );
                                                 })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        <h3 className="text-2xl font-bold text-gray-900 mt-10 mb-6 flex items-center gap-3">
+                                            <TrendingUp className="text-purple-600" size={24} />
+                                            Earnings Per Share (EPS) Over Time
+                                        </h3>
+                                        <div className="overflow-x-auto rounded-xl shadow-lg border border-gray-200">
+                                            <table className="w-full">
+                                                <thead className="bg-gradient-to-r from-purple-50 to-pink-50">
+                                                <tr>
+                                                    <th className="text-left py-4 px-6 font-bold text-gray-900">Year</th>
+                                                    {stockData.incomeStatement.map((item: IncomeStatementItem) => (
+                                                        <th key={`eps-head-${item.year}`} className="text-right py-4 px-6 font-bold text-gray-900">{item.year}</th>
+                                                    ))}
+                                                </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-200">
+                                                <tr className="hover:bg-purple-50/50 transition-colors duration-200">
+                                                    <td className="py-4 px-6 font-semibold text-gray-900">EPS</td>
+                                                    {stockData.incomeStatement.map((item: IncomeStatementItem) => (
+                                                        <td key={`eps-${item.year}`} className="py-4 px-6 text-right font-medium text-gray-900">${item.eps.toFixed(2)}</td>
+                                                    ))}
+                                                </tr>
+                                                <tr className="bg-pink-50/30">
+                                                    <td className="py-3 px-6 text-sm text-gray-600 font-medium">EPS YoY</td>
+                                                    {stockData.incomeStatement.map((item: IncomeStatementItem, index: number) => {
+                                                        const prevItem = stockData.incomeStatement[index + 1];
+                                                        const growth = prevItem ? calculateGrowthRate(item.eps, prevItem.eps) : 0;
+                                                        const isLast = index === stockData.incomeStatement.length - 1;
+                                                        return (
+                                                            <td key={`eps-yoy-${item.year}`} className={`py-3 px-6 text-right text-sm font-bold ${
+                                                                growth >= 0 ? 'text-green-600' : 'text-red-600'
+                                                            }`}>
+                                                                {isLast ? '-' : formatPercent(growth)}
+                                                            </td>
+                                                        );
+                                                    })}
+                                                </tr>
                                                 </tbody>
                                             </table>
                                         </div>
